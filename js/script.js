@@ -66,3 +66,30 @@ const navToggle = document.getElementById('navToggle');
       }
     });
   }
+
+  /* ---------- Talent application form (frontend-only for now, backend wiring comes later) ---------- */
+  const applyForm = document.getElementById('applyForm');
+  const applyFormStatus = document.getElementById('applyFormStatus');
+  if (applyForm) {
+    applyForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!applyForm.checkValidity()) {
+        applyForm.reportValidity();
+        return;
+      }
+      const submitBtn = applyForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      applyFormStatus.textContent = 'Submitting...';
+      applyFormStatus.className = 'form-status';
+
+      // NOTE: no backend wired up yet. Once ready, replace this block with a
+      // fetch(applyForm.action, { method: 'POST', body: new FormData(applyForm) })
+      // call the same way contactForm above does.
+      setTimeout(() => {
+        applyFormStatus.textContent = "Thanks! Your application has been received. We'll review it and reach out if there's a match.";
+        applyFormStatus.className = 'form-status success';
+        applyForm.reset();
+        submitBtn.disabled = false;
+      }, 600);
+    });
+  }
