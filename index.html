@@ -112,7 +112,7 @@
       <a href="#" class="logo"><img src="images/staffle-logo-dark.png" alt="Staffle"></a>
       <div class="nav-links">
         <a href="#disciplines">For Companies</a>
-        <a href="#disciplines">Talent</a>
+        <a href="#apply">For Talent</a>
         <a href="#how-it-works">How It Works</a>
         <a href="#contact">Contact</a>
       </div>
@@ -129,7 +129,7 @@
     </nav>
     <div class="mobile-panel" id="mobilePanel">
       <a href="#disciplines">For Companies</a>
-      <a href="#disciplines">Talent</a>
+      <a href="#apply">For Talent</a>
       <a href="#how-it-works">How It Works</a>
       <a href="#contact">Contact</a>
       <a href="#contact" class="btn btn-mint" style="justify-content:center">Get In Touch</a>
@@ -441,6 +441,149 @@
     </div>
   </section>
 
+  <!-- ============ TALENT APPLICATION ============ -->
+  <section class="contact apply-section" id="apply">
+    <div class="wrap">
+      <div class="section-head" style="margin:0 auto 40px;text-align:center;max-width:640px;">
+        <p class="eyebrow-plain" style="text-align:center;">Join our talent network</p>
+        <h2>Apply as a pre-vetted talent</h2>
+        <p>Tell us about yourself. Our team reviews every application and reaches out to strong matches.</p>
+      </div>
+
+      <form class="contact-form apply-form" id="applyForm" action="https://formspree.io/f/YOUR_FORM_ID_TALENT"
+        method="POST" enctype="multipart/form-data">
+
+        <div class="form-group-title">Basic information</div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-name">Full name*</label>
+            <input type="text" id="ap-name" name="full_name" placeholder="Jane Doe" required>
+          </div>
+          <div class="form-field">
+            <label for="ap-email">Email*</label>
+            <input type="email" id="ap-email" name="email" placeholder="jane@email.com" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-phone">WhatsApp / Phone number</label>
+            <input type="tel" id="ap-phone" name="phone" placeholder="+92 3XX XXXXXXX">
+          </div>
+          <div class="form-field">
+            <label for="ap-location">City &amp; country*</label>
+            <input type="text" id="ap-location" name="location" placeholder="Lahore, Pakistan" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-title">Professional title*</label>
+            <input type="text" id="ap-title" name="title" placeholder="e.g. UI/UX Designer, Data Analyst" required>
+          </div>
+          <div class="form-field">
+            <label for="ap-experience">Years of experience*</label>
+            <select id="ap-experience" name="experience" required>
+              <option value="" disabled selected>Select range</option>
+              <option value="1-2 years">1-2 years</option>
+              <option value="3-5 years">3-5 years</option>
+              <option value="6-8 years">6-8 years</option>
+              <option value="9-15 years">9-15 years</option>
+              <option value="15+ years">15+ years</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-linkedin">LinkedIn profile URL</label>
+            <input type="url" id="ap-linkedin" name="linkedin_url" placeholder="https://linkedin.com/in/...">
+          </div>
+          <div class="form-field">
+            <label for="ap-portfolio">Portfolio / GitHub URL</label>
+            <input type="url" id="ap-portfolio" name="portfolio_url" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="form-group-title">Work preferences</div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-notice">Notice period*</label>
+            <select id="ap-notice" name="notice_period" required>
+              <option value="" disabled selected>Select notice period</option>
+              <option value="Immediately available">Immediately available</option>
+              <option value="2 weeks">2 weeks</option>
+              <option value="1 month">1 month</option>
+              <option value="2+ months">2+ months</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="ap-workplace">Workplace preference*</label>
+            <select id="ap-workplace" name="workplace_preference" required>
+              <option value="" disabled selected>Select preference</option>
+              <option value="Remote">Remote</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Onsite">Onsite</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-timezone">Timezone overlap*</label>
+            <input type="text" id="ap-timezone" name="timezone_overlap" placeholder="e.g. 4+ hrs with US/EU" required>
+          </div>
+          <div class="form-field">
+            <label for="ap-employment">Employment type*</label>
+            <select id="ap-employment" name="employment_type" required>
+              <option value="" disabled selected>Select type</option>
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Contract">Contract</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field">
+            <label for="ap-concurrent">Concurrent full-time commitments?*</label>
+            <select id="ap-concurrent" name="concurrent_commitments" required>
+              <option value="" disabled selected>Select answer</option>
+              <option value="No">No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="ap-salary">Expected monthly salary (USD)*</label>
+            <input type="number" id="ap-salary" name="expected_salary_usd" placeholder="e.g. 1500" min="0" required>
+          </div>
+        </div>
+
+        <div class="form-group-title">Verification</div>
+
+        <div class="form-field">
+          <label for="ap-resume">Resume (PDF, max 10MB)*</label>
+          <input type="file" id="ap-resume" name="resume" accept="application/pdf" required>
+        </div>
+
+        <label class="form-checkbox">
+          <input type="checkbox" id="ap-consent" name="consent" value="Yes" required>
+          <span>I agree to a video call and to being represented to client companies as part of Staffle's talent
+            network.*</span>
+        </label>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+          Submit Application<svg>
+            <use href="#ic-arrow" />
+          </svg>
+        </button>
+        <p class="form-status" id="applyFormStatus"></p>
+      </form>
+    </div>
+  </section>
+
   <!-- ============ CONTACT ============ -->
   <section class="contact" id="contact">
     <div class="wrap">
@@ -494,7 +637,7 @@
             <a href="#disciplines">For Companies</a>
             <a href="#disciplines">Talent</a>
             <a href="#how-it-works">How It Works</a>
-            <a href="#">For Talent</a>
+            <a href="#apply">For Talent</a>
           </div>
           <div class="footer-col">
             <h4>Connect</h4>
