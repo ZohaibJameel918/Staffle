@@ -1264,3 +1264,34 @@ footer {
   accent-color: var(--mint-deep);
   cursor: pointer;
 }
+
+/* ---------- Preloader ---------- */
+body.preloading {
+  overflow: hidden;
+}
+
+#preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity .6s ease;
+}
+
+#preloader.preloader-hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#preloaderCanvas {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #preloader {
+    display: none !important;
+  }
+}

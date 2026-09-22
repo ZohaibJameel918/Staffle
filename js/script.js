@@ -1,3 +1,113 @@
+/* ---------- Preloader: logo particle explosion ---------- */
+(function () {
+  const preloader = document.getElementById('preloader');
+  const canvas = document.getElementById('preloaderCanvas');
+  if (!preloader || !canvas) return;
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) {
+    preloader.remove();
+    return;
+  }
+
+  document.body.classList.add('preloading');
+
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const size = Math.round(Math.min(220, window.innerWidth * 0.42));
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  ctx.scale(dpr, dpr);
+
+  function finishPreload() {
+    preloader.classList.add('preloader-hide');
+    document.body.classList.remove('preloading');
+    setTimeout(() => preloader.remove(), 650);
+  }
+
+  const safetyTimer = setTimeout(finishPreload, 4000);
+
+  const logo = new Image();
+  logo.src = 'images/staffle-logo-light.png';
+
+  logo.onload = () => {
+    const scale = Math.min(size / logo.width, size / logo.height) * 0.82;
+    const w = logo.width * scale;
+    const h = logo.height * scale;
+    const ox = (size - w) / 2;
+    const oy = (size - h) / 2;
+
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(logo, ox, oy, w, h);
+
+    let imgData;
+    try {
+      imgData = ctx.getImageData(0, 0, size, size).data;
+    } catch (err) {
+      clearTimeout(safetyTimer);
+      setTimeout(finishPreload, 500);
+      return;
+    }
+
+    const particles = [];
+    const step = 3;
+    for (let y = 0; y < size; y += step) {
+      for (let x = 0; x < size; x += step) {
+        const idx = (y * size + x) * 4;
+        const alpha = imgData[idx + 3];
+        if (alpha > 80) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 0.4 + Math.random() * 1.4;
+          particles.push({
+            baseX: x,
+            baseY: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            r: Math.random() * 1.3 + 0.5
+          });
+        }
+      }
+    }
+
+    setTimeout(() => {
+      clearTimeout(safetyTimer);
+      let start = null;
+      const duration = 850;
+
+      function animate(ts) {
+        if (!start) start = ts;
+        const elapsed = ts - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 2);
+
+        ctx.clearRect(0, 0, size, size);
+        particles.forEach(p => {
+          const px = p.baseX + p.vx * eased * 70;
+          const py = p.baseY + p.vy * eased * 70;
+          const a = 1 - eased;
+          ctx.fillStyle = 'rgba(90, 219, 200, ' + a + ')';
+          ctx.beginPath();
+          ctx.arc(px, py, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          finishPreload();
+        }
+      }
+      requestAnimationFrame(animate);
+    }, 550);
+  };
+
+  logo.onerror = () => {
+    clearTimeout(safetyTimer);
+    finishPreload();
+  };
+})();
 const navToggle = document.getElementById('navToggle');
   const panel = document.getElementById('mobilePanel');
   const menuIcon = document.getElementById('menuIcon');
