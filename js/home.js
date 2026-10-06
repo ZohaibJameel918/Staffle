@@ -25,8 +25,9 @@
     ['.faq-num', 60, 0],
     ['.faq-q', 60, 150],
     ['.faq-a > span', 18, 100],
-    ['.cta-links a span', 70, 0],
-    ['.legal span, .legal nav a', 40, 0]
+    ['.ft-note', 60, 0],
+    ['.ft-mail-t', 60, 100],
+    ['.ft-links a, .ft-copy', 40, 200]
   ];
   const finish = (el) => {
     const n = el.querySelectorAll('.wi').length;
@@ -113,6 +114,17 @@ roleItems.forEach(li => {
   li.addEventListener('mouseleave', () => li.classList.remove('active'));
 });
 
+// Footer wordmark: letters rise one by one when it scrolls into view
+const ftMark = document.querySelector('.ft-mark');
+if (ftMark) {
+  ftMark.querySelectorAll('.ft-word > *').forEach((l, i) => { l.style.transitionDelay = (i * 0.08) + 's'; });
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((entries, obs) => {
+      entries.forEach(e => { if (e.isIntersecting) { ftMark.classList.add('in'); obs.disconnect(); } });
+    }, { threshold: 0.4 }).observe(ftMark);
+  } else { ftMark.classList.add('in'); }
+}
+
 // Arcs reveal (one-time)
 const arcs = document.getElementById('arcs');
 if ('IntersectionObserver' in window) {
@@ -121,14 +133,89 @@ if ('IntersectionObserver' in window) {
   }, { threshold: 0.35 }).observe(arcs);
 } else { arcs.classList.remove('pre'); }
 
-// Cards drop in from the top (once)
+// Cards: drop in one by one as they scroll into view, plus sideways scrolling (drag, arrows, trackpad)
 const cardsEl = document.getElementById('cards');
-const dropIn = () => { cardsEl.classList.remove('pre'); cardsEl.classList.add('in'); };
-if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+const cardWraps = [...cardsEl.querySelectorAll('.card-wrap')];
+const reduceCards = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if ('IntersectionObserver' in window && !reduceCards) {
+  cardWraps.forEach(w => w.classList.add('pre'));
+  let batch = 0, batchT = 0;
+  const cardIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const w = e.target;
+      w.style.setProperty('--dl', (batch++ * 0.45) + 's');
+      clearTimeout(batchT); batchT = setTimeout(() => { batch = 0; }, 400);
+      w.classList.remove('pre'); w.classList.add('in');
+      cardIO.unobserve(w);
+    });
+  }, { root: cardsEl, threshold: 0.1 });
+  // start watching only once the section reaches the screen, so the first cards drop when visible
   new IntersectionObserver((entries, obs) => {
-    entries.forEach(e => { if (e.isIntersecting) { dropIn(); obs.disconnect(); } });
+    entries.forEach(e => { if (e.isIntersecting) { cardWraps.forEach(w => cardIO.observe(w)); obs.disconnect(); } });
   }, { threshold: 0, rootMargin: '0px 0px -20% 0px' }).observe(cardsEl);
-} else { dropIn(); }
+}
+
+// Hover: the badge sways gently left and right on its lanyard, and settles back when the cursor leaves
+if (!reduceCards && window.matchMedia('(hover: hover)').matches) {
+  const PERIOD = 3200, MAX_DEG = 2.4;
+  cardWraps.forEach(w => {
+    const badge = w.querySelector('.badge');
+    let amp = 0, target = 0, phase = 0, last = 0, raf = 0;
+    const tick = (now) => {
+      const dt = last ? Math.min(now - last, 50) : 16; last = now;
+      amp += (target - amp) * (target ? 0.035 : 0.025);
+      phase += dt / PERIOD * Math.PI * 2;
+      badge.style.transform = `rotate(${(amp * Math.sin(phase)).toFixed(3)}deg)`;
+      if (!target && amp < 0.02) { badge.style.transform = ''; raf = 0; last = 0; phase = 0; return; }
+      raf = requestAnimationFrame(tick);
+    };
+    w.addEventListener('mouseenter', () => { target = MAX_DEG; if (!raf) raf = requestAnimationFrame(tick); });
+    w.addEventListener('mouseleave', () => { target = 0; });
+  });
+}
+
+// sideways scrolling helpers
+const cardsPrev = document.getElementById('cardsPrev'), cardsNext = document.getElementById('cardsNext'), cardsBar = document.getElementById('cardsBar');
+const cardStep = () => { const w = cardWraps.find(x => !x.hidden); return w ? w.getBoundingClientRect().width + parseFloat(getComputedStyle(cardsEl).columnGap || 40) : 300; };
+const updateCardsNav = () => {
+  const max = cardsEl.scrollWidth - cardsEl.clientWidth;
+  cardsPrev.disabled = cardsEl.scrollLeft <= 2;
+  cardsNext.disabled = cardsEl.scrollLeft >= max - 2;
+  const vis = max > 0 ? cardsEl.clientWidth / cardsEl.scrollWidth : 1;
+  cardsBar.style.width = (vis * 100) + '%';
+  cardsBar.style.transform = `translateX(${max > 0 ? (cardsEl.scrollLeft / max) * ((1 - vis) / vis) * 100 : 0}%)`;
+};
+cardsPrev.addEventListener('click', () => cardsEl.scrollBy({ left: -cardStep(), behavior: 'smooth' }));
+cardsNext.addEventListener('click', () => cardsEl.scrollBy({ left: cardStep(), behavior: 'smooth' }));
+cardsEl.addEventListener('scroll', updateCardsNav, { passive: true });
+window.addEventListener('resize', updateCardsNav);
+cardsEl.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') { e.preventDefault(); cardsNext.click(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); cardsPrev.click(); }
+});
+// drag with the mouse
+let dragX = null, dragStart = 0, dragMoved = false;
+cardsEl.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  dragX = e.clientX; dragStart = cardsEl.scrollLeft; dragMoved = false;
+});
+window.addEventListener('pointermove', (e) => {
+  if (dragX === null) return;
+  const dx = e.clientX - dragX;
+  if (!dragMoved && Math.abs(dx) > 5) { dragMoved = true; cardsEl.classList.add('dragging'); }
+  if (dragMoved) cardsEl.scrollLeft = dragStart - dx;
+});
+window.addEventListener('pointerup', () => {
+  if (dragX === null) return;
+  dragX = null;
+  if (dragMoved) {
+    cardsEl.classList.remove('dragging');
+    const s = cardStep(); cardsEl.scrollTo({ left: Math.round(cardsEl.scrollLeft / s) * s, behavior: 'smooth' });
+  }
+});
+cardsEl.addEventListener('click', (e) => { if (dragMoved) { e.preventDefault(); e.stopPropagation(); dragMoved = false; } }, true);
+updateCardsNav();
 
 // FAQ rings: draw one by one, then fade out one by one, and repeat
 const faqTitle = document.getElementById('faqTitle');
@@ -313,6 +400,9 @@ tabs.forEach(t => t.addEventListener('click', () => {
   const f = t.dataset.filter; let shown = 0;
   wraps.forEach(w => { const ok = f === 'all' || w.dataset.cat === f; w.hidden = !ok; if (ok) shown++; });
   document.getElementById('noMatch').hidden = shown > 0;
+  cardsEl.scrollTo({ left: 0 });
+  wraps.forEach(w => { if (!w.hidden && w.classList.contains('pre')) { w.classList.remove('pre'); w.classList.add('in'); } });
+  updateCardsNav();
 }));
 
 // FAQ columns
@@ -324,3 +414,179 @@ cols.forEach(c => {
   c.addEventListener('focus', () => openCol(c));
   if (canHover) c.addEventListener('mouseenter', () => openCol(c));
 });
+
+// ---------- Full roster popup (opens from "view more") ----------
+(() => {
+  const modal = document.getElementById('rosterModal');
+  if (!modal) return;
+
+  // Edit this list to add, remove or change candidates
+  const CANDIDATES = [
+    { id: 'DES-204', cat: 'design', title: 'Lead UI/UX & Brand Designer', years: '7+', hours: 40, remote: 'US EST / PST Overlap',
+      summary: 'Specialized in scalable design systems, B2B SaaS workflows, and high-conversion brand collateral. Proven at taking products from rough wireframes to polished, developer-ready interfaces.',
+      skills: ['Figma', 'Design Systems', 'UI/UX Architecture', 'Prototyping'],
+      highlights: ['Built and maintained component libraries used across multiple product teams', 'Led end-to-end redesigns of SaaS dashboards and onboarding flows', 'Comfortable presenting work directly to founders and stakeholders'] },
+    { id: 'DES-118', cat: 'design', title: 'Brand Identity Designer', years: '5+', hours: 40, remote: 'UK / Europe Overlap',
+      summary: 'Creates complete visual identities, from logo systems and typography to brand guidelines, packaging and campaign assets that stay consistent across every touchpoint.',
+      skills: ['Adobe Illustrator', 'Brand Guidelines', 'Logo Systems', 'Packaging'],
+      highlights: ['Delivered full brand books for early-stage and growing companies', 'Strong typography and layout fundamentals', 'Prepares print-ready and digital-ready files'] },
+    { id: 'DES-231', cat: 'design', title: 'Motion & Visual Designer', years: '4+', hours: 30, remote: 'US / Europe Overlap',
+      summary: 'Brings products and brands to life with motion: product explainers, UI micro-interactions, social content and animated brand assets.',
+      skills: ['After Effects', 'Lottie', 'Figma', 'Cinema 4D'],
+      highlights: ['Produces lightweight Lottie animations ready for web and apps', 'Experience with launch videos and social campaigns', 'Works closely with UI designers and developers'] },
+    { id: 'ENG-412', cat: 'engineering', title: 'Senior Full-Stack Engineer', years: '6+', hours: 40, remote: 'US / UK Overlap',
+      summary: 'Specialized in web application development, clean API architecture, database performance, and scalable cloud deployments.',
+      skills: ['React / Next.js', 'Node.js', 'TypeScript', 'PostgreSQL'],
+      highlights: ['Shipped production apps from first commit to launch', 'Writes clear, tested and well-documented code', 'Comfortable owning features across frontend and backend'] },
+    { id: 'DAT-308', cat: 'data', title: 'Data & BI Analytics Specialist', years: '5+', hours: 40, remote: 'US / Europe Overlap',
+      summary: 'Hands-on focus in centralized reporting, analytics transformations, warehouse pipelines, and executive dashboards that teams actually use.',
+      skills: ['Python', 'SQL', 'Databricks', 'Tableau'],
+      highlights: ['Turned scattered spreadsheets into a single source of truth', 'Builds executive dashboards with clear, trusted metrics', 'Translates business questions into analysis'] },
+    { id: 'DAT-322', cat: 'data', title: 'Data Engineer', years: '6+', hours: 40, remote: 'US EST Overlap',
+      summary: 'Designs and maintains reliable data pipelines and modern warehouse setups, so analysts and stakeholders always work with fresh, accurate data.',
+      skills: ['Airflow', 'dbt', 'Snowflake', 'Spark'],
+      highlights: ['Built batch and streaming pipelines at scale', 'Strong focus on data quality, testing and monitoring', 'Experience with cloud warehouses and cost optimization'] },
+    { id: 'DAT-215', cat: 'data', title: 'Data Scientist', years: '4+', hours: 40, remote: 'UK / Europe Overlap',
+      summary: 'Applies statistics and machine learning to real business problems: forecasting, segmentation, experimentation and predictive modelling.',
+      skills: ['Python', 'scikit-learn', 'Forecasting', 'A/B Testing'],
+      highlights: ['Built forecasting models used for planning and inventory', 'Designs and analyses product experiments', 'Explains complex results in plain language'] },
+    { id: 'DAT-140', cat: 'data', title: 'Power BI Developer', years: '5+', hours: 30, remote: 'Middle East / Europe Overlap',
+      summary: 'Builds fast, well-modelled Power BI reports with clean data models, solid DAX and automated refreshes connected to your existing systems.',
+      skills: ['Power BI', 'DAX', 'Power Query', 'Azure'],
+      highlights: ['Designed semantic models for finance and operations teams', 'Automated manual reporting into scheduled dashboards', 'Experience with row-level security and workspace setup'] },
+    { id: 'GRO-109', cat: 'growth', title: 'Growth Marketing Lead', years: '6+', hours: 40, remote: 'US / UK Overlap',
+      summary: 'Runs data-driven acquisition and lifecycle campaigns across paid, email and content, with a sharp eye on funnel metrics and CAC.',
+      skills: ['Meta Ads', 'Google Ads', 'HubSpot', 'Funnel Analytics'],
+      highlights: ['Planned and scaled paid acquisition across channels', 'Built lifecycle and email automation flows', 'Reports clearly on spend, conversion and ROI'] },
+    { id: 'GRO-127', cat: 'growth', title: 'Product Manager', years: '5+', hours: 40, remote: 'US / Europe Overlap',
+      summary: 'Bridges users, design and engineering: shapes roadmaps, writes clear specs and keeps delivery focused on outcomes.',
+      skills: ['Roadmapping', 'Jira', 'Amplitude', 'User Research'],
+      highlights: ['Led discovery and delivery for B2B SaaS features', 'Writes clear PRDs and user stories', 'Comfortable working with distributed teams'] }
+  ];
+
+  const ICONS = {
+    design: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 100 18c1.1 0 1.7-.8 1.7-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7h2A4.6 4.6 0 0021 10.6C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10" cy="7.3" r="1.2" fill="currentColor"/><circle cx="14.5" cy="7.3" r="1.2" fill="currentColor"/></svg>',
+    engineering: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/></svg>',
+    data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5S9.6 5.8 12 3.5z"/></svg>',
+    growth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>'
+  };
+  const SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4" stroke-linecap="round"/></svg>';
+  const GLOBE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.4 3.7 5.4 3.7 9s-1.2 6.6-3.7 9c-2.5-2.4-3.7-5.4-3.7-9S9.5 5.4 12 3z"/></svg>';
+  const DOC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>';
+  const LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3" stroke-linecap="round"/></svg>';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const grid = document.getElementById('rmGrid');
+  const empty = document.getElementById('rmEmpty');
+  const count = document.getElementById('rmCount');
+  const search = document.getElementById('rmSearch');
+  const pills = modal.querySelectorAll('[data-rm-filter]');
+  const dossier = document.getElementById('rmDossier');
+  const dContent = document.getElementById('rdContent');
+  let filter = 'all', lastFocus = null;
+
+  const idBlock = c => `
+    <div class="rc-id">
+      <div class="rc-icon">${ICONS[c.cat]}</div>
+      <div>
+        <p class="rc-bench">${SHIELD}Confidential Bench</p>
+        <p class="rc-code">Candidate #${esc(c.id)}</p>
+      </div>
+    </div>`;
+
+  const card = (c, k) => `
+    <article class="rc" data-cat="${c.cat}" style="--k:${k}">
+      <div class="rc-top">${idBlock(c)}<span class="rc-hours">${c.hours} hrs/week</span></div>
+      <div class="rc-info">
+        <div class="rc-title-row"><h3 class="rc-title">${esc(c.title)}</h3><span class="rc-exp">${esc(c.years)} Years Exp</span></div>
+        <p class="rc-remote">${GLOBE}Remote (${esc(c.remote)})</p>
+        <p class="rc-desc">${esc(c.summary)}</p>
+        <div class="rc-skills">${c.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div>
+        <div class="rc-actions">
+          <button type="button" class="rc-btn ghost" data-dossier="${esc(c.id)}">${DOC}Preview Dossier</button>
+          <a href="#book" class="rc-btn solid" data-rm-book>${LOCK}Request Intro</a>
+        </div>
+      </div>
+    </article>`;
+
+  const render = () => {
+    const q = search.value.trim().toLowerCase();
+    const list = CANDIDATES.filter(c =>
+      (filter === 'all' || c.cat === filter) &&
+      (!q || [c.title, c.id, c.remote, c.summary, ...c.skills].join(' ').toLowerCase().includes(q)));
+    grid.innerHTML = list.map(card).join('');
+    empty.hidden = list.length > 0;
+    count.textContent = list.length ? `${list.length} ${list.length === 1 ? 'professional' : 'professionals'} available` : '';
+  };
+
+  const openDossier = (id) => {
+    const c = CANDIDATES.find(x => x.id === id);
+    if (!c) return;
+    dContent.innerHTML = `
+      <div class="rd-head rc-top" data-cat="${c.cat}">${idBlock(c)}<h3 class="rd-title" id="rdTitle">${esc(c.title)}</h3></div>
+      <dl class="rd-facts">
+        <div><dt>Experience</dt><dd>${esc(c.years)} years</dd></div>
+        <div><dt>Availability</dt><dd>${c.hours} hrs/week</dd></div>
+        <div><dt>Timezone</dt><dd>${esc(c.remote)}</dd></div>
+      </dl>
+      <div class="rd-section"><h4>Summary</h4><p>${esc(c.summary)}</p></div>
+      <div class="rd-section"><h4>Highlights</h4><ul>${c.highlights.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>
+      <div class="rd-section"><h4>Core skills</h4><div class="rd-skills">${c.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div></div>
+      <p class="rd-note">Name, CV and work samples are shared once you request an intro.</p>
+      <a href="#book" class="rc-btn solid rd-cta" data-rm-book>${LOCK}Request Intro to #${esc(c.id)}</a>`;
+    dossier.classList.add('is-open');
+    dossier.setAttribute('aria-hidden', 'false');
+    dossier.scrollTop = 0;
+    document.getElementById('rdBack').focus();
+  };
+  const closeDossier = () => {
+    if (!dossier.classList.contains('is-open')) return false;
+    dossier.classList.remove('is-open');
+    dossier.setAttribute('aria-hidden', 'true');
+    return true;
+  };
+
+  const open = (e) => {
+    if (e) e.preventDefault();
+    lastFocus = document.activeElement;
+    render();
+    modal.hidden = false;
+    document.body.classList.add('rm-open');
+    requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('is-open')));
+    setTimeout(() => modal.querySelector('.rm-close').focus(), 50);
+  };
+  const close = () => {
+    closeDossier();
+    modal.classList.remove('is-open');
+    document.body.classList.remove('rm-open');
+    setTimeout(() => { modal.hidden = true; if (lastFocus) lastFocus.focus(); }, 380);
+  };
+
+  document.querySelectorAll('.view-more, [data-open-roster]').forEach(b => b.addEventListener('click', open));
+  modal.querySelectorAll('[data-rm-close]').forEach(b => b.addEventListener('click', close));
+  document.getElementById('rdBack').addEventListener('click', closeDossier);
+  pills.forEach(p => p.addEventListener('click', () => {
+    filter = p.dataset.rmFilter;
+    pills.forEach(x => x.setAttribute('aria-selected', x === p));
+    render();
+  }));
+  search.addEventListener('input', render);
+  modal.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-dossier]');
+    if (d) { openDossier(d.dataset.dossier); return; }
+    const book = e.target.closest('[data-rm-book]');
+    if (book) { e.preventDefault(); close(); setTimeout(() => document.getElementById('book').scrollIntoView({ behavior: 'smooth' }), 400); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (modal.hidden) return;
+    if (e.key === 'Escape') { if (!closeDossier()) close(); }
+    if (e.key === 'Tab') {
+      const scope = dossier.classList.contains('is-open') ? dossier : modal.querySelector('.rm-panel');
+      const f = [...scope.querySelectorAll('button, a[href], input')].filter(el => el.offsetParent !== null && !el.closest('[aria-hidden="true"]'));
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+})();
