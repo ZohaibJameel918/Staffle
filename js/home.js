@@ -249,20 +249,13 @@ if (!reduceMotion) {
   const area = svg && svg.closest('.wf-art');
   if (!svg || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   svg.style.overflow = 'visible';
-  const W = 383, H = 540, G = 0.45, E = 0.25, MU = 0.35;
-  // collision circles for each shape: [offsetX, offsetY, radius] relative to its center
-  const hulls = [
-    [[-40, 20, 20], [34, -30, 20], [8, 8, 40]],
-    [[0, 0, 72]],
-    [[-50, 15, 30], [50, 15, 30], [0, -5, 40], [-70, 30, 18], [70, 30, 18]],
-    [[-17, -17, 28], [0, 0, 28], [17, 17, 28]],
-    [[0, 0, 34], [-30, -58, 14], [66, 2, 14], [-38, 56, 14], [22, -30, 22], [16, 32, 22], [-30, 0, 24]],
-    [[-70.8, -122.1, 48],[-53.1, -91.6, 48],[-35.4, -61.1, 48],[-17.7, -30.5, 48],[0.0, 0.0, 48],[17.7, 30.5, 48],[35.4, 61.1, 48],[53.1, 91.6, 48],[70.8, 122.1, 48]]
-  ];
-  const bodies = [...svg.querySelectorAll('.shape')].map((g, i) => {
-    const cx = +g.dataset.cx, cy = +g.dataset.cy, circles = hulls[i];
+  // world bounds come from the SVG viewBox: left wall, right wall, floor
+  const vb = svg.viewBox.baseVal, X0 = vb.x, W = vb.x + vb.width, H = vb.y + vb.height;
+  const G = 0.45 * (vb.width / 383), E = 0.25, MU = 0.35;
+  // each shape carries its own collision circles [offsetX, offsetY, radius] relative to its centre (data-hull)
+  const bodies = [...svg.querySelectorAll('.shape')].map((g) => {
+    const cx = +g.dataset.cx, cy = +g.dataset.cy, circles = JSON.parse(g.dataset.hull), dens = +(g.dataset.dens || 1);
     let m = 0, I = 0;
-    const dens = i === 5 ? 0.45 : 1;
     circles.forEach(([ox, oy, r]) => { const cm = r * r * dens; m += cm; I += cm * (r * r / 2 + ox * ox + oy * oy); });
     return { g, cx, cy, circles, x: cx, y: cy, a: 0, vx: 0, vy: 0, w: 0, im: 1 / m, iI: 1 / I };
   });
@@ -311,7 +304,7 @@ if (!reduceMotion) {
         wc[i].forEach(c => {
           const px = A.x + c.rx, py = A.y + c.ry, rA = { x: c.rx, y: c.ry };
           if (py + c.r > H) resolve(A, null, { x: c.rx, y: c.ry + c.r }, null, 0, -1, py + c.r - H);
-          if (px - c.r < 0) resolve(A, null, { x: c.rx - c.r, y: c.ry }, null, 1, 0, c.r - px);
+          if (px - c.r < X0) resolve(A, null, { x: c.rx - c.r, y: c.ry }, null, 1, 0, X0 + c.r - px);
           if (px + c.r > W) resolve(A, null, { x: c.rx + c.r, y: c.ry }, null, -1, 0, px + c.r - W);
           for (let k = i + 1; k < bodies.length; k++) {
             const B = bodies[k];
@@ -348,13 +341,14 @@ if (!reduceMotion) {
   area.addEventListener('mousemove', (e) => {
     const p = toSvg(e);
     if (last && mode === 'fall') {
-      const mdx = Math.max(-30, Math.min(30, p.x - last.x)), mdy = Math.max(-30, Math.min(30, p.y - last.y));
+      const lim = 30 * (vb.width / 383), mdx = Math.max(-lim, Math.min(lim, p.x - last.x)), mdy = Math.max(-lim, Math.min(lim, p.y - last.y));
       bodies.forEach(b => {
         const dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
-        if (d > 130) return;
-        const f = 1 - d / 130;
-        b.vx += (dx / d * 1.2 + mdx * 0.35) * f;
-        b.vy += (dy / d * 1.2 + mdy * 0.35) * f;
+        const R = 130 * (vb.width / 383);
+        if (d > R) return;
+        const f = 1 - d / R;
+        b.vx += (dx / d * 1.2 * (vb.width / 383) + mdx * 0.35) * f;
+        b.vy += (dy / d * 1.2 * (vb.width / 383) + mdy * 0.35) * f;
         b.w += ((dx * mdy - dy * mdx) / d) * 0.0015 * f;
       });
     }
@@ -583,6 +577,143 @@ cols.forEach(c => {
     if (e.key === 'Tab') {
       const scope = dossier.classList.contains('is-open') ? dossier : modal.querySelector('.rm-panel');
       const f = [...scope.querySelectorAll('button, a[href], input')].filter(el => el.offsetParent !== null && !el.closest('[aria-hidden="true"]'));
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+})();
+
+// ---------- Apply as Talent popup ----------
+(() => {
+  const modal = document.getElementById('applyModal');
+  if (!modal) return;
+  // Where applications are sent. Paste your Formspree (or similar) form link here, e.g. 'https://formspree.io/f/abcdwxyz'.
+  // While it stays empty, the form only shows the "received" screen and nothing is sent anywhere.
+  const FORM_ENDPOINT = '';
+
+  const ROLES = {
+    Design: ['Brand Identity Designer', 'UI/UX Designer', 'Product Designer', 'Graphic Designer', 'Motion Designer', 'Web Designer', 'Illustrator', 'Packaging Designer', 'Presentation Designer', 'Design System Specialist'],
+    Data: ['Data Analyst', 'Data Engineer', 'Data Scientist', 'Machine Learning Engineer', 'Business Intelligence Analyst', 'Power BI Developer', 'Tableau Developer', 'Analytics Engineer', 'Data Visualization Specialist']
+  };
+  const form = document.getElementById('apForm');
+  const steps = [...modal.querySelectorAll('[data-step]')];
+  const dots = [...modal.querySelectorAll('[data-step-dot]')];
+  const roleSel = document.getElementById('apRole');
+  const cv = document.getElementById('apCv'), cvLabel = document.getElementById('apCvLabel');
+  let current = 1, lastFocus = null;
+
+  const go = (n) => {
+    current = n;
+    steps.forEach(s => s.classList.toggle('is-active', +s.dataset.step === n));
+    dots.forEach(d => {
+      const k = +d.dataset.stepDot;
+      d.classList.toggle('is-active', k === n);
+      d.classList.toggle('is-done', k < n);
+    });
+    modal.querySelector('.ap-main').scrollTop = 0;
+    modal.querySelector('.ap-panel').scrollTop = 0;
+    const first = steps.find(s => +s.dataset.step === n).querySelector('input, select, button');
+    const panel = modal.querySelector('.ap-panel');
+    if (first) setTimeout(() => { first.focus({ preventScroll: true }); panel.scrollTop = 0; modal.querySelector('.ap-main').scrollTop = 0; }, 60);
+  };
+
+  const clearErr = (field) => { field.classList.remove('has-error'); const e = field.querySelector('.ap-err'); if (e) e.remove(); };
+  const setErr = (field, msg) => {
+    if (field.querySelector('.ap-err')) return;
+    field.classList.add('has-error');
+    const e = document.createElement('span'); e.className = 'ap-err'; e.textContent = msg; field.appendChild(e);
+  };
+  const validate = (stepEl) => {
+    let ok = true, firstBad = null;
+    // accept links typed without https:// (e.g. www.linkedin.com/in/name)
+    stepEl.querySelectorAll('input[type="url"]').forEach(inp => {
+      const v = inp.value.trim();
+      if (v && !/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) inp.value = 'https://' + v;
+    });
+    stepEl.querySelectorAll('.ap-field').forEach(clearErr);
+    const checked = new Set();
+    stepEl.querySelectorAll('input[required], select[required]').forEach(inp => {
+      const field = inp.closest('.ap-field');
+      if (inp.type === 'radio') {
+        if (checked.has(inp.name)) return; checked.add(inp.name);
+        if (!stepEl.querySelector(`input[name="${inp.name}"]:checked`)) { ok = false; setErr(field, 'Please choose one option.'); firstBad = firstBad || inp; }
+        return;
+      }
+      if (!inp.value.trim()) { ok = false; setErr(field, 'This field is required.'); firstBad = firstBad || inp; }
+      else if (!inp.checkValidity()) { ok = false; setErr(field, inp.type === 'email' ? 'Please enter a valid email.' : inp.type === 'url' ? 'Please enter a valid link, e.g. behance.net/yourname' : 'Please check this field.'); firstBad = firstBad || inp; }
+    });
+    stepEl.querySelectorAll('input[type="url"]:not([required])').forEach(inp => {
+      if (inp.value.trim() && !inp.checkValidity()) { ok = false; setErr(inp.closest('.ap-field'), 'Please enter a valid link, e.g. behance.net/yourname'); firstBad = firstBad || inp; }
+    });
+    // summary right above the buttons, so it's visible even if the bad field is off screen
+    let sum = stepEl.querySelector('.ap-summary');
+    if (!ok) {
+      const names = [...stepEl.querySelectorAll('.ap-field.has-error')].map(f => (f.querySelector(':scope > span') || {}).textContent || '').map(t => t.replace(/\(optional\)/, '').trim()).filter(Boolean);
+      if (!sum) { sum = document.createElement('p'); sum.className = 'ap-summary'; sum.setAttribute('role', 'alert'); stepEl.querySelector('.ap-actions').before(sum); }
+      sum.textContent = 'Please complete: ' + names.join(', ') + '.';
+    } else if (sum) { sum.remove(); }
+    if (firstBad) { firstBad.focus({ preventScroll: true }); setTimeout(() => firstBad.closest('.ap-field').scrollIntoView({ behavior: 'smooth', block: 'center' }), 1200); }
+    return ok;
+  };
+
+  form.addEventListener('input', (e) => { const f = e.target.closest('.ap-field'); if (f) clearErr(f); });
+  form.querySelectorAll('input[name="discipline"]').forEach(r => r.addEventListener('change', () => {
+    roleSel.innerHTML = '<option value="">Select your role</option>' + ROLES[r.value].map(x => `<option>${x}</option>`).join('');
+  }));
+  cv.addEventListener('change', () => {
+    const f = cv.files[0];
+    cvLabel.innerHTML = f ? `<b>${f.name.replace(/[<>&]/g, '')}</b> ${(f.size / 1024 / 1024).toFixed(1)} MB, click to change` : '<b>Upload your CV</b> PDF or Word, optional';
+  });
+  modal.querySelector('[data-next]').addEventListener('click', () => { if (validate(steps[0])) go(2); });
+  modal.querySelector('[data-back]').addEventListener('click', () => go(1));
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validate(steps[1])) return;
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Sending...';
+    const name = (form.elements.name.value.trim().split(' ')[0] || '').replace(/[<>&]/g, '');
+    let sent = true;
+    if (FORM_ENDPOINT) {
+      try {
+        const res = await fetch(FORM_ENDPOINT, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
+        sent = res.ok;
+      } catch (err) { sent = false; }
+    }
+    btn.disabled = false; btn.textContent = 'Submit application';
+    if (!sent) { alert('Sorry, something went wrong. Please try again, or email hello@staffle.net.'); return; }
+    document.getElementById('apDoneText').textContent = `Thanks${name ? ', ' + name : ''}! Our team reviews every application. If your profile fits an open role, we'll reach out for a short technical assessment.`;
+    go(3);
+  });
+
+  const open = (e) => {
+    if (e) e.preventDefault();
+    if (typeof menu !== 'undefined' && menu) { menu.classList.remove('open'); }
+    lastFocus = document.activeElement;
+    modal.hidden = false;
+    document.body.classList.add('ap-open');
+    requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('is-open')));
+    go(current === 3 ? 1 : current);
+  };
+  const close = () => {
+    modal.classList.remove('is-open');
+    document.body.classList.remove('ap-open');
+    setTimeout(() => {
+      modal.hidden = true;
+      if (current === 3) { form.reset(); roleSel.innerHTML = '<option value="">Choose a discipline first</option>'; cvLabel.innerHTML = '<b>Upload your CV</b> PDF or Word, optional'; current = 1; }
+      if (lastFocus) lastFocus.focus();
+    }, 380);
+  };
+
+  document.querySelectorAll('a[href="apply.html"], [data-open-apply]').forEach(a => a.addEventListener('click', open));
+  modal.querySelectorAll('[data-ap-close]').forEach(b => b.addEventListener('click', close));
+  document.addEventListener('keydown', (e) => {
+    if (modal.hidden) return;
+    if (e.key === 'Escape') close();
+    if (e.key === 'Tab') {
+      const f = [...modal.querySelectorAll('button, a[href], input, select')].filter(el => el.offsetParent !== null && !el.closest('.ap-step:not(.is-active)') && !(el.type === 'radio' && !el.checked && modal.querySelector(`input[name="${el.name}"]:checked`)));
       if (!f.length) return;
       const first = f[0], last = f[f.length - 1];
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
