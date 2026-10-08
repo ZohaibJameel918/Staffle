@@ -708,6 +708,14 @@ cols.forEach(c => {
   };
 
   document.querySelectorAll('a[href="apply.html"], [data-open-apply]').forEach(a => a.addEventListener('click', open));
+  // old links to apply.html now land on index.html#apply-now: open the popup straight away
+  const openFromHash = () => {
+    if (location.hash !== '#apply-now') return;
+    history.replaceState(null, '', location.pathname + location.search);
+    open();
+  };
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
   modal.querySelectorAll('[data-ap-close]').forEach(b => b.addEventListener('click', close));
   document.addEventListener('keydown', (e) => {
     if (modal.hidden) return;
